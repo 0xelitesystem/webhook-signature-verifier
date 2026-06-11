@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Webhook Signature Verifier</title>
+<style>
+:root {
+  --bg: #f0eee8;
+  --surface: #ffffff;
+  --ink: #0a0d1a;
+  --ink-soft: #383d52;
+  --rule: #c0bdb0;
+  --crypto: #25305c;
+  --crypto-deep: #161e3f;
+  --accent: #1d6db5;
+  --accent-deep: #155591;
+  --ok: #1a5c2e;
+  --err: #8b1a1a;
+  --warn: #8a5a00;
+  --code-bg: #e8e6dc;
+}
+[data-theme="dark"] {
+  --bg: #0d1020;
+  --surface: #1a1f38;
+  --ink: #e8eaf0;
+  --ink-soft: #b0b6c8;
+  --rule: #353a52;
+  --crypto: #6d80c0;
+  --crypto-deep: #8a9ed8;
+  --accent: #5a9cd8;
+  --accent-deep: #80b8e6;
+  --ok: #6dd380;
+  --err: #e88080;
+  --warn: #d4a155;
+  --code-bg: #0a0d1a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  line-height: 1.55;
+}
+.wrap { max-width: 1100px; margin: 0 auto; }
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 3px solid var(--crypto);
+  padding-bottom: 1.25rem;
+  margin-bottom: 2rem;
+}
+h1 {
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--crypto);
+}
+[data-theme="dark"] h1 { color: var(--crypto); }
+.subtitle {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  margin-top: 0.25rem;
+}
+.theme-btn {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.theme-btn:hover { border-color: var(--crypto); color: var(--crypto); }
+.lede {
+  font-size: 0.95rem;
+  margin-bottom: 1.75rem;
+  max-width: 65ch;
+}
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--rule);
+  margin-bottom: 0;
+  flex-wrap: wrap;
+}
+.tab {
+  padding: 0.7rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-family: inherit;
+  border-radius: 0;
+}
+.tab:hover { color: var(--crypto); }
+.tab.active {
+  color: var(--crypto);
+  border-bottom-color: var(--crypto);
+  font-weight: 600;
+}
+.panel {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-top: none;
+  padding: 1.5rem;
+  border-radius: 0 0 3px 3px;
+}
+.panel.active { display: block; }
+.field { margin-bottom: 1rem; }
+label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  margin-bottom: 0.4rem;
+}
+input[type="text"], textarea {
+  width: 100%;
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  padding: 0.6rem 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  border-radius: 2px;
+}
+textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.help {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin-top: 0.3rem;
+  font-style: italic;
+}
+.btn-row {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+}
+button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  border-radius: 2px;
+}
+button.primary {
+  background: var(--crypto);
+  border-color: var(--crypto);
+  color: var(--surface);
+  font-weight: 600;
+}
+[data-theme="dark"] button.primary {
+  color: var(--bg) !important;
+}
+button.primary:hover { background: var(--crypto-deep); border-color: var(--crypto-deep); }
+button:hover { border-color: var(--crypto); }
+.result {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border-radius: 3px;
+  font-size: 0.9rem;
+  display: none;
+}
+.result.show { display: block; }
+.result.valid {
+  background: var(--code-bg);
+  border-left: 4px solid var(--ok);
+  color: var(--ok);
+  font-weight: 600;
+}
+.result.invalid {
+  background: var(--code-bg);
+  border-left: 4px solid var(--err);
+  color: var(--err);
+  font-weight: 600;
+}
+.result.warning {
+  background: var(--code-bg);
+  border-left: 4px solid var(--warn);
+  color: var(--warn);
+}
+.result-detail {
+  margin-top: 0.65rem;
+  font-weight: 400;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.8rem;
+  color: var(--ink);
+  word-break: break-all;
+}
+.intro {
+  background: var(--code-bg);
+  padding: 1rem;
+  border-radius: 2px;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  margin-bottom: 1.25rem;
+}
+.intro code {
+  background: var(--surface);
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px;
+  font-size: 0.82rem;
+  color: var(--accent-deep);
+}
+[data-theme="dark"] .intro code { color: var(--accent-deep); }
+footer {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+.privacy-note {
+  font-size: 0.78rem;
+  color: var(--accent-deep);
+  margin-top: 0.5rem;
+}
+[data-theme="dark"] .privacy-note { color: var(--accent-deep); }
+@media (max-width: 640px) {
+  body { padding: 1rem 0.75rem; }
+  h1 { font-size: 1.35rem; }
+  .tab { padding: 0.55rem 0.85rem; font-size: 0.82rem; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>Webhook Signature Verifier</h1>
+    <div class="subtitle">Verify webhooks from Stripe, GitHub, Slack, Twilio, and more — in your browser</div>
+  </div>
+  <button class="theme-btn" id="theme-toggle" type="button">Dark</button>
+</header>
+
+<p class="lede">When a webhook lands in your inbox or staging logs and the signature isn't matching, paste the headers and body here to debug. Everything runs locally; the signing secret never leaves the page.</p>
+
+<div class="tabs" role="tablist">
+  <button class="tab active" data-target="stripe" type="button">Stripe</button>
+  <button class="tab" data-target="github" type="button">GitHub</button>
+  <button class="tab" data-target="slack" type="button">Slack</button>
+  <button class="tab" data-target="twilio" type="button">Twilio</button>
+  <button class="tab" data-target="generic" type="button">Generic HMAC</button>
+</div>
+
+<!-- STRIPE -->
+<div class="panel active" id="panel-stripe">
+  <div class="intro">
+    Stripe sends a <code>Stripe-Signature</code> header containing <code>t=...</code> (timestamp) and one or more <code>v1=...</code> signatures. The signed payload is <code>{timestamp}.{body}</code>, signed with HMAC-SHA256 using your webhook signing secret (<code>whsec_...</code>).
+  </div>
+  <div class="field">
+    <label for="stripe-sig">Stripe-Signature header</label>
+    <input type="text" id="stripe-sig" placeholder="t=1700000000,v1=abc123...">
+  </div>
+  <div class="field">
+    <label for="stripe-secret">Webhook signing secret</label>
+    <input type="text" id="stripe-secret" placeholder="whsec_...">
+  </div>
+  <div class="field">
+    <label for="stripe-body">Request body (raw, exactly as received)</label>
+    <textarea id="stripe-body" placeholder='{"id":"evt_...","object":"event",...}'></textarea>
+    <div class="help">The body must be the raw bytes Stripe sent. Reformatting JSON will break the signature.</div>
+  </div>
+  <div class="btn-row">
+    <button class="primary" data-verify="stripe" type="button">Verify</button>
+    <button data-sample="stripe" type="button">Load sample</button>
+  </div>
+  <div class="result" id="result-stripe"></div>
+  <div class="privacy-note">All cryptography happens in your browser via Web Crypto. The secret is never sent over the network.</div>
+</div>
+
+<!-- GITHUB -->
+<div class="panel" id="panel-github">
+  <div class="intro">
+    GitHub sends an <code>X-Hub-Signature-256</code> header in the form <code>sha256=&lt;hex&gt;</code>. Signature is HMAC-SHA256 of the raw request body using your webhook secret. (The legacy <code>X-Hub-Signature</code> uses SHA-1 and should not be relied on.)
+  </div>
+  <div class="field">
+    <label for="github-sig">X-Hub-Signature-256 header</label>
+    <input type="text" id="github-sig" placeholder="sha256=abcdef0123456789...">
+  </div>
+  <div class="field">
+    <label for="github-secret">Webhook secret</label>
+    <input type="text" id="github-secret" placeholder="my-webhook-secret">
+  </div>
+  <div class="field">
+    <label for="github-body">Request body (raw)</label>
+    <textarea id="github-body"></textarea>
+  </div>
+  <div class="btn-row">
+    <button class="primary" data-verify="github" type="button">Verify</button>
+    <button data-sample="github" type="button">Load sample</button>
+  </div>
+  <div class="result" id="result-github"></div>
+</div>
+
+<!-- SLACK -->
+<div class="panel" id="panel-slack">
+  <div class="intro">
+    Slack sends <code>X-Slack-Signature</code> (form <code>v0=&lt;hex&gt;</code>) and <code>X-Slack-Request-Timestamp</code>. The signed string is <code>v0:{timestamp}:{body}</code>, signed with HMAC-SHA256 using the signing secret found in your Slack app's Basic Information page.
+  </div>
+  <div class="field">
+    <label for="slack-sig">X-Slack-Signature header</label>
+    <input type="text" id="slack-sig" placeholder="v0=abcdef...">
+  </div>
+  <div class="field">
+    <label for="slack-ts">X-Slack-Request-Timestamp header</label>
+    <input type="text" id="slack-ts" placeholder="1700000000">
+  </div>
+  <div class="field">
+    <label for="slack-secret">Signing secret</label>
+    <input type="text" id="slack-secret">
+  </div>
+  <div class="field">
+    <label for="slack-body">Request body (raw)</label>
+    <textarea id="slack-body"></textarea>
+  </div>
+  <div class="btn-row">
+    <button class="primary" data-verify="slack" type="button">Verify</button>
+    <button data-sample="slack" type="button">Load sample</button>
+  </div>
+  <div class="result" id="result-slack"></div>
+</div>
+
+<!-- TWILIO -->
+<div class="panel" id="panel-twilio">
+  <div class="intro">
+    Twilio sends an <code>X-Twilio-Signature</code> header. The signed string is the full URL plus, for POST requests, the form-encoded parameters sorted alphabetically and concatenated. Signature is HMAC-SHA1 base64-encoded, using your Twilio auth token.
+  </div>
+  <div class="field">
+    <label for="twilio-sig">X-Twilio-Signature header</label>
+    <input type="text" id="twilio-sig">
+  </div>
+  <div class="field">
+    <label for="twilio-token">Auth token</label>
+    <input type="text" id="twilio-token">
+  </div>
+  <div class="field">
+    <label for="twilio-url">Full URL (the one Twilio called)</label>
+    <input type="text" id="twilio-url" placeholder="https://example.com/sms-incoming">
+  </div>
+  <div class="field">
+    <label for="twilio-params">Form parameters (one key=value per line; for GET requests, leave empty)</label>
+    <textarea id="twilio-params" placeholder="From=%2B15551234567&#10;To=%2B15557654321&#10;Body=Hello"></textarea>
+    <div class="help">Paste the URL-decoded form values. The verifier will URL-encode and sort them as Twilio expects.</div>
+  </div>
+  <div class="btn-row">
+    <button class="primary" data-verify="twilio" type="button">Verify</button>
+  </div>
+  <div class="result" id="result-twilio"></div>
+</div>
+
+<!-- GENERIC -->
+<div class="panel" id="panel-generic">
+  <div class="intro">
+    For any service that signs the raw body with HMAC. Choose the hash, paste the secret, paste the body, paste the expected signature in hex or base64.
+  </div>
+  <div class="field">
+    <label for="gen-algo">Hash algorithm</label>
+    <select id="gen-algo" style="padding: 0.55rem; font-family: inherit; font-size: 0.85rem; border: 1px solid var(--rule); border-radius: 2px; background: var(--code-bg); color: var(--ink);">
+      <option value="SHA-256">HMAC-SHA256</option>
+      <option value="SHA-1">HMAC-SHA1</option>
+      <option value="SHA-384">HMAC-SHA384</option>
+      <option value="SHA-512">HMAC-SHA512</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="gen-encoding">Signature encoding</label>
+    <select id="gen-encoding" style="padding: 0.55rem; font-family: inherit; font-size: 0.85rem; border: 1px solid var(--rule); border-radius: 2px; background: var(--code-bg); color: var(--ink);">
+      <option value="hex">hex</option>
+      <option value="base64">base64</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="gen-sig">Expected signature</label>
+    <input type="text" id="gen-sig">
+  </div>
+  <div class="field">
+    <label for="gen-secret">Secret</label>
+    <input type="text" id="gen-secret">
+  </div>
+  <div class="field">
+    <label for="gen-body">Body to sign</label>
+    <textarea id="gen-body"></textarea>
+  </div>
+  <div class="btn-row">
+    <button class="primary" data-verify="generic" type="button">Verify</button>
+  </div>
+  <div class="result" id="result-generic"></div>
+</div>
+
+<footer>
+  <div>Webhook Signature Verifier. MIT licensed. <a href="https://github.com/0xelitesystem/webhook-signature-verifier" target="_blank" rel="noopener">View source</a>.</div>
+  <div>All verification happens in-browser via Web Crypto API.</div>
+</footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// Theme
+const themeBtn = $("theme-toggle");
+function setTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  themeBtn.textContent = t === "dark" ? "Light" : "Dark";
+}
+themeBtn.addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme") || "light";
+  setTheme(cur === "dark" ? "light" : "dark");
+});
+
+// Tabs
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+    tab.classList.add("active");
+    $("panel-" + tab.dataset.target).classList.add("active");
+  });
+});
+
+// Helpers
+async function hmac(secret, message, hashAlgo = "SHA-256") {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    typeof secret === "string" ? enc.encode(secret) : secret,
+    { name: "HMAC", hash: hashAlgo },
+    false,
+    ["sign"]
+  );
+  const data = typeof message === "string" ? enc.encode(message) : message;
+  const sig = await crypto.subtle.sign("HMAC", key, data);
+  return new Uint8Array(sig);
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function bytesToBase64(bytes) {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+function base64ToBytes(s) {
+  const bin = atob(s);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+function constantTimeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+function showResult(id, type, msg, detail) {
+  const el = $(id);
+  el.className = "result show " + type;
+  el.innerHTML = `<div>${msg}</div>` + (detail ? `<div class="result-detail">${detail}</div>` : "");
+}
+
+// Stripe
+async function verifyStripe() {
+  try {
+    const sigHeader = $("stripe-sig").value.trim();
+    const secret = $("stripe-secret").value.trim();
+    const body = $("stripe-body").value;
+    if (!sigHeader || !secret || !body) {
+      showResult("result-stripe", "warning", "All three fields required.");
+      return;
+    }
+    const parts = Object.fromEntries(
+      sigHeader.split(",").map((p) => p.split("=").map((x) => x.trim()))
+    );
+    if (!parts.t) { showResult("result-stripe", "invalid", "Header missing t= timestamp"); return; }
+    const v1Matches = sigHeader.match(/v1=([a-f0-9]+)/g);
+    if (!v1Matches) { showResult("result-stripe", "invalid", "Header missing v1= signature"); return; }
+    const v1Sigs = v1Matches.map(m => m.slice(3));
+
+    const signedPayload = parts.t + "." + body;
+    const expected = bytesToHex(await hmac(secret, signedPayload));
+    const matched = v1Sigs.some(s => constantTimeEqual(s, expected));
+
+    if (matched) {
+      const tsAge = Math.floor(Date.now() / 1000) - parseInt(parts.t);
+      let warning = "";
+      if (tsAge > 300) warning = ` (warning: timestamp is ${tsAge}s old; Stripe recommends rejecting if >5min)`;
+      showResult("result-stripe", "valid", "Signature is valid" + warning, `Computed: ${expected}`);
+    } else {
+      showResult("result-stripe", "invalid", "Signature does NOT match", `Expected one of: ${v1Sigs.join(", ")}\nComputed: ${expected}`);
+    }
+  } catch (e) {
+    showResult("result-stripe", "invalid", "Error: " + e.message);
+  }
+}
+
+// GitHub
+async function verifyGithub() {
+  try {
+    const sig = $("github-sig").value.trim();
+    const secret = $("github-secret").value.trim();
+    const body = $("github-body").value;
+    if (!sig || !secret || !body) { showResult("result-github", "warning", "All three fields required."); return; }
+    if (!sig.startsWith("sha256=")) { showResult("result-github", "invalid", "Header should start with sha256="); return; }
+    const provided = sig.slice(7);
+    const expected = bytesToHex(await hmac(secret, body));
+    if (constantTimeEqual(provided, expected)) {
+      showResult("result-github", "valid", "Signature is valid", `Computed: sha256=${expected}`);
+    } else {
+      showResult("result-github", "invalid", "Signature does NOT match", `Provided: ${provided}\nComputed: ${expected}`);
+    }
+  } catch (e) {
+    showResult("result-github", "invalid", "Error: " + e.message);
+  }
+}
+
+// Slack
+async function verifySlack() {
+  try {
+    const sig = $("slack-sig").value.trim();
+    const ts = $("slack-ts").value.trim();
+    const secret = $("slack-secret").value.trim();
+    const body = $("slack-body").value;
+    if (!sig || !ts || !secret || !body) { showResult("result-slack", "warning", "All four fields required."); return; }
+    if (!sig.startsWith("v0=")) { showResult("result-slack", "invalid", "Signature should start with v0="); return; }
+    const provided = sig.slice(3);
+    const baseString = `v0:${ts}:${body}`;
+    const expected = bytesToHex(await hmac(secret, baseString));
+    if (constantTimeEqual(provided, expected)) {
+      const tsAge = Math.floor(Date.now() / 1000) - parseInt(ts);
+      let warning = "";
+      if (Math.abs(tsAge) > 300) warning = ` (warning: timestamp is ${tsAge}s; Slack recommends rejecting >5min drift to prevent replay)`;
+      showResult("result-slack", "valid", "Signature is valid" + warning, `Computed: v0=${expected}`);
+    } else {
+      showResult("result-slack", "invalid", "Signature does NOT match", `Provided: ${provided}\nComputed: ${expected}`);
+    }
+  } catch (e) {
+    showResult("result-slack", "invalid", "Error: " + e.message);
+  }
+}
+
+// Twilio
+async function verifyTwilio() {
+  try {
+    const sig = $("twilio-sig").value.trim();
+    const token = $("twilio-token").value.trim();
+    const url = $("twilio-url").value.trim();
+    const paramsRaw = $("twilio-params").value.trim();
+    if (!sig || !token || !url) { showResult("result-twilio", "warning", "Signature, token, and URL required."); return; }
+
+    let signedString = url;
+    if (paramsRaw) {
+      const params = {};
+      paramsRaw.split("\n").forEach((line) => {
+        const eq = line.indexOf("=");
+        if (eq > 0) {
+          const k = line.slice(0, eq).trim();
+          const v = decodeURIComponent(line.slice(eq + 1).trim());
+          params[k] = v;
+        }
+      });
+      const sortedKeys = Object.keys(params).sort();
+      for (const k of sortedKeys) {
+        signedString += k + params[k];
+      }
+    }
+
+    const sigBytes = await hmac(token, signedString, "SHA-1");
+    const expected = bytesToBase64(sigBytes);
+    if (constantTimeEqual(sig, expected)) {
+      showResult("result-twilio", "valid", "Signature is valid", `Computed: ${expected}`);
+    } else {
+      showResult("result-twilio", "invalid", "Signature does NOT match", `Provided: ${sig}\nComputed: ${expected}\nSigned string: ${signedString.slice(0, 200)}${signedString.length > 200 ? "..." : ""}`);
+    }
+  } catch (e) {
+    showResult("result-twilio", "invalid", "Error: " + e.message);
+  }
+}
+
+// Generic HMAC
+async function verifyGeneric() {
+  try {
+    const algo = $("gen-algo").value;
+    const encoding = $("gen-encoding").value;
+    const sig = $("gen-sig").value.trim();
+    const secret = $("gen-secret").value.trim();
+    const body = $("gen-body").value;
+    if (!sig || !secret || !body) { showResult("result-generic", "warning", "Signature, secret, and body required."); return; }
+
+    const sigBytes = await hmac(secret, body, algo);
+    const expected = encoding === "hex" ? bytesToHex(sigBytes) : bytesToBase64(sigBytes);
+    if (constantTimeEqual(sig, expected)) {
+      showResult("result-generic", "valid", "Signature is valid", `Computed: ${expected}`);
+    } else {
+      showResult("result-generic", "invalid", "Signature does NOT match", `Provided: ${sig}\nComputed: ${expected}`);
+    }
+  } catch (e) {
+    showResult("result-generic", "invalid", "Error: " + e.message);
+  }
+}
+
+const VERIFIERS = {
+  stripe: verifyStripe,
+  github: verifyGithub,
+  slack: verifySlack,
+  twilio: verifyTwilio,
+  generic: verifyGeneric,
+};
+
+document.querySelectorAll("[data-verify]").forEach((btn) => {
+  btn.addEventListener("click", () => VERIFIERS[btn.dataset.verify]());
+});
+
+// Samples (for quick demo, use a known test vector)
+async function loadSample(provider) {
+  const SAMPLES = {
+    stripe: async () => {
+      const secret = "whsec_test_secret_12345";
+      const ts = "1700000000";
+      const body = '{"id":"evt_test","object":"event","data":{}}';
+      const expected = bytesToHex(await hmac(secret, ts + "." + body));
+      $("stripe-sig").value = `t=${ts},v1=${expected}`;
+      $("stripe-secret").value = secret;
+      $("stripe-body").value = body;
+    },
+    github: async () => {
+      const secret = "my-webhook-secret";
+      const body = '{"action":"opened","number":1}';
+      const expected = bytesToHex(await hmac(secret, body));
+      $("github-sig").value = `sha256=${expected}`;
+      $("github-secret").value = secret;
+      $("github-body").value = body;
+    },
+    slack: async () => {
+      const secret = "8f742231b10e8888abcd99yyyzzz85a5";
+      const ts = "1700000000";
+      const body = "token=xyzz0WbapA4vBCDEFasx0q6G&team_id=T1DC2JH3J&text=hello";
+      const expected = bytesToHex(await hmac(secret, `v0:${ts}:${body}`));
+      $("slack-sig").value = `v0=${expected}`;
+      $("slack-ts").value = ts;
+      $("slack-secret").value = secret;
+      $("slack-body").value = body;
+    },
+  };
+  if (SAMPLES[provider]) await SAMPLES[provider]();
+}
+
+document.querySelectorAll("[data-sample]").forEach((btn) => {
+  btn.addEventListener("click", () => loadSample(btn.dataset.sample));
+});
+
+setTheme("light");
+</script>
+</body>
+</html>
