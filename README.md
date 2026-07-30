@@ -80,6 +80,10 @@ If you're seeing "signature does NOT match" but you're sure the secret is right:
 
 There is no build. Single HTML file.
 
+## More
+
+Part of a catalog of single-file browser tools and plain-language references, all MIT licensed and dependency-free: [0xelitesystem.github.io](https://0xelitesystem.github.io/). Built by [elitesystem.ai](https://elitesystem.ai).
+
 ## License
 
 MIT.
